@@ -9,6 +9,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [selectedCleaner, setSelectedCleaner] = useState(null)
+  const [providerType, setProviderType] = useState('all')
   const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
 
   useEffect(() => {
@@ -23,11 +24,11 @@ function App() {
     navigator.geolocation.getCurrentPosition((pos) => {
       const { latitude, longitude } = pos.coords
       setCoords({ lat: latitude, lng: longitude })
-      fetchCleaners(latitude, longitude)
+      fetchCleaners(latitude, longitude, providerType)
     })
   }
 
-  const fetchCleaners = async (lat, lng) => {
+  const fetchCleaners = async (lat, lng, provider = providerType) => {
     setLoading(true)
     try {
       const url = new URL(`${baseUrl}/cleaners`)
@@ -35,6 +36,10 @@ function App() {
         url.searchParams.set('lat', lat)
         url.searchParams.set('lng', lng)
       }
+      if (provider && provider !== 'all') {
+        url.searchParams.set('provider_type', provider)
+      }
+      url.searchParams.set('radius_km', 25)
       const res = await fetch(url.toString())
       const data = await res.json()
       setCleaners(data)
@@ -65,9 +70,14 @@ function App() {
     }
   }
 
+  const onFilterChange = (type) => {
+    setProviderType(type)
+    fetchCleaners(coords?.lat, coords?.lng, type)
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <Navbar onLocate={locate} />
+      <Navbar onLocate={locate} providerType={providerType} onFilterChange={onFilterChange} />
 
       <div className="max-w-md mx-auto px-4 py-4 space-y-4">
         <h1 className="text-2xl font-bold">Premium Car Cleaning near you</h1>
