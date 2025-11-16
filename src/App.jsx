@@ -1,26 +1,95 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import Navbar from './components/Navbar'
+import CleanerCard from './components/CleanerCard'
+import BookingSheet from './components/BookingSheet'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [coords, setCoords] = useState(null)
+  const [cleaners, setCleaners] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [selectedCleaner, setSelectedCleaner] = useState(null)
+  const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
+
+  useEffect(() => {
+    // Auto seed cleaners for first-run experience
+    fetch(`${baseUrl}/seed`, { method: 'POST' }).finally(() => {
+      fetchCleaners()
+    })
+  }, [])
+
+  const locate = () => {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const { latitude, longitude } = pos.coords
+      setCoords({ lat: latitude, lng: longitude })
+      fetchCleaners(latitude, longitude)
+    })
+  }
+
+  const fetchCleaners = async (lat, lng) => {
+    setLoading(true)
+    try {
+      const url = new URL(`${baseUrl}/cleaners`)
+      if (lat && lng) {
+        url.searchParams.set('lat', lat)
+        url.searchParams.set('lng', lng)
+      }
+      const res = await fetch(url.toString())
+      const data = await res.json()
+      setCleaners(data)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleBook = (cleaner) => {
+    setSelectedCleaner(cleaner)
+    setSheetOpen(true)
+  }
+
+  const handleConfirmBooking = async (payload) => {
+    try {
+      const res = await fetch(`${baseUrl}/book`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      const data = await res.json()
+      alert(`Booking created! Total: $${data.total_price}. Complete payment next.`)
+      setSheetOpen(false)
+    } catch (e) {
+      alert('Failed to create booking')
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center">
-      <div className="bg-white p-8 rounded-lg shadow-lg">
-        <h1 className="text-3xl font-bold text-gray-800 mb-4">
-          Vibe Coding Platform
-        </h1>
-        <p className="text-gray-600 mb-6">
-          Your AI-powered development environment
-        </p>
-        <div className="text-center">
-          <button
-            onClick={() => setCount(count + 1)}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded"
-          >
-            Count is {count}
-          </button>
-        </div>
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      <Navbar onLocate={locate} />
+
+      <div className="max-w-md mx-auto px-4 py-4 space-y-4">
+        <h1 className="text-2xl font-bold">Premium Car Cleaning near you</h1>
+        {loading ? (
+          <p className="text-gray-600">Loading cleaners...</p>
+        ) : cleaners.length === 0 ? (
+          <p className="text-gray-600">No cleaners found nearby.</p>
+        ) : (
+          <div className="grid gap-4">
+            {cleaners.map((c) => (
+              <CleanerCard key={c.id} cleaner={c} onBook={handleBook} />
+            ))}
+          </div>
+        )}
       </div>
+
+      <BookingSheet
+        open={sheetOpen}
+        cleaner={selectedCleaner}
+        onClose={() => setSheetOpen(false)}
+        onConfirm={handleConfirmBooking}
+      />
     </div>
   )
 }
